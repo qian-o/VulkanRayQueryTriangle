@@ -37,13 +37,14 @@ heap and passes its 8-byte-stride index through the `DescriptorHandle`.
 ```powershell
 cmake -S . -B build
 cmake --build build --config Release
-.\build\vulkan_descriptor_heap_ray_query_repro.exe
+.\build\Release\vulkan_descriptor_heap_ray_query_repro.exe
 ```
 
 CMake compiles `ray_query.slang`, validates the generated module for Vulkan
 1.4, writes its disassembly under `build\shader`, and copies the binary beside
-the executable. With a multi-configuration generator, the executable may be
-under `build\Release`.
+the executable. The command above uses the default Visual Studio
+multi-configuration generator. With a single-configuration generator such as
+Ninja, the executable is instead under `build`.
 
 The run submits GPU work and may reset an affected device. On the known failing
 configuration it prints:
