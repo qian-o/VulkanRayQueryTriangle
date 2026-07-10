@@ -116,15 +116,12 @@ struct AccelerationStructure
 
 struct Functions
 {
-    PFN_vkGetPhysicalDeviceDescriptorSizeEXT getPhysicalDeviceDescriptorSize = nullptr;
-
     PFN_vkCreateAccelerationStructureKHR createAccelerationStructure = nullptr;
     PFN_vkDestroyAccelerationStructureKHR destroyAccelerationStructure = nullptr;
     PFN_vkGetAccelerationStructureBuildSizesKHR getAccelerationStructureBuildSizes = nullptr;
     PFN_vkCmdBuildAccelerationStructuresKHR cmdBuildAccelerationStructures = nullptr;
     PFN_vkGetAccelerationStructureDeviceAddressKHR getAccelerationStructureDeviceAddress = nullptr;
 
-    PFN_vkWriteResourceDescriptorsEXT writeResourceDescriptors = nullptr;
     PFN_vkCmdBindResourceHeapEXT cmdBindResourceHeap = nullptr;
     PFN_vkCmdPushDataEXT cmdPushData = nullptr;
 };
@@ -215,17 +212,6 @@ T loadDeviceFunction(VkDevice device, const char* name, bool required = true)
     if (required && !function)
     {
         fail(std::string("Missing device function: ") + name);
-    }
-    return function;
-}
-
-template<typename T>
-T loadInstanceFunction(VkInstance instance, const char* name)
-{
-    auto function = reinterpret_cast<T>(vkGetInstanceProcAddr(instance, name));
-    if (!function)
-    {
-        fail(std::string("Missing instance function: ") + name);
     }
     return function;
 }
@@ -390,8 +376,6 @@ void initializeVulkan(App& app)
     check(vkCreateDevice(app.physicalDevice, &deviceInfo, nullptr, &app.device), "vkCreateDevice");
     vkGetDeviceQueue(app.device, app.queueFamily, 0, &app.queue);
 
-    app.fn.getPhysicalDeviceDescriptorSize = loadInstanceFunction<PFN_vkGetPhysicalDeviceDescriptorSizeEXT>(
-        app.instance, "vkGetPhysicalDeviceDescriptorSizeEXT");
     app.fn.createAccelerationStructure = loadDeviceFunction<PFN_vkCreateAccelerationStructureKHR>(
         app.device, "vkCreateAccelerationStructureKHR");
     app.fn.destroyAccelerationStructure = loadDeviceFunction<PFN_vkDestroyAccelerationStructureKHR>(
@@ -402,8 +386,6 @@ void initializeVulkan(App& app)
         app.device, "vkCmdBuildAccelerationStructuresKHR");
     app.fn.getAccelerationStructureDeviceAddress = loadDeviceFunction<PFN_vkGetAccelerationStructureDeviceAddressKHR>(
         app.device, "vkGetAccelerationStructureDeviceAddressKHR");
-    app.fn.writeResourceDescriptors = loadDeviceFunction<PFN_vkWriteResourceDescriptorsEXT>(
-        app.device, "vkWriteResourceDescriptorsEXT");
     app.fn.cmdBindResourceHeap = loadDeviceFunction<PFN_vkCmdBindResourceHeapEXT>(
         app.device, "vkCmdBindResourceHeapEXT");
     app.fn.cmdPushData = loadDeviceFunction<PFN_vkCmdPushDataEXT>(app.device, "vkCmdPushDataEXT");
@@ -647,12 +629,7 @@ void buildAccelerationStructures(App& app)
 void createDescriptorHeapAndBuffers(App& app)
 {
     const VkDeviceSize reserved = app.heapProperties.minResourceHeapReservedRange;
-    const VkDeviceSize entryWriteSize = app.fn.getPhysicalDeviceDescriptorSize(
-        app.physicalDevice, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
-    const VkDeviceSize asDescriptorAlignment = std::max<VkDeviceSize>(
-        app.heapProperties.bufferDescriptorAlignment, 1);
-    const VkDeviceSize asStride = alignUp(app.heapProperties.bufferDescriptorSize,
-                                          asDescriptorAlignment);
+    constexpr VkDeviceSize asStride = sizeof(VkDeviceAddress);
     if (app.heapProperties.resourceHeapAlignment == 0)
     {
         fail("Descriptor heap alignment is zero");
@@ -667,9 +644,8 @@ void createDescriptorHeapAndBuffers(App& app)
                                     VK_BUFFER_USAGE_DESCRIPTOR_HEAP_BIT_EXT,
                                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-    if ((asOffset % asDescriptorAlignment) != 0 ||
-        ((app.resourceHeap.address + asOffset) % asDescriptorAlignment) != 0 ||
-        entryWriteSize > asStride ||
+    if ((asOffset % alignof(VkDeviceAddress)) != 0 ||
+        ((app.resourceHeap.address + asOffset) % alignof(VkDeviceAddress)) != 0 ||
         totalSize > app.heapProperties.maxResourceHeapSize ||
         reserved > totalSize ||
         (app.resourceHeap.address % app.heapProperties.resourceHeapAlignment) != 0 ||
@@ -682,22 +658,14 @@ void createDescriptorHeapAndBuffers(App& app)
 
     const uint32_t sceneHandle = static_cast<uint32_t>(asOffset / asStride);
     auto* sceneSlot = static_cast<std::byte*>(app.resourceHeap.mapped) + asOffset;
-    std::memset(sceneSlot, 0, static_cast<size_t>(asStride));
-    VkDeviceAddressRangeEXT addressRange{app.tlas.address, 0};
-    VkResourceDescriptorInfoEXT descriptor{VK_STRUCTURE_TYPE_RESOURCE_DESCRIPTOR_INFO_EXT};
-    descriptor.type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
-    descriptor.data.pAddressRange = &addressRange;
-    VkHostAddressRangeEXT target{sceneSlot, static_cast<size_t>(entryWriteSize)};
-    check(app.fn.writeResourceDescriptors(app.device, 1, &descriptor, &target),
-          "vkWriteResourceDescriptorsEXT(acceleration structure)");
-
-    uint64_t heapEntryBits = 0;
-    std::memcpy(&heapEntryBits, sceneSlot, sizeof(heapEntryBits));
+    std::memcpy(sceneSlot, &app.tlas.address, sizeof(app.tlas.address));
 
     struct Constants
     {
         uint32_t sceneHandle;
+        uint32_t reserved;
     } constants{};
+    static_assert(sizeof(Constants) == 8);
     constants.sceneHandle = sceneHandle;
 
     app.constantsBuffer = createBuffer(app,
@@ -724,20 +692,16 @@ void createDescriptorHeapAndBuffers(App& app)
         app.limits.maxStorageBufferRange < sizeof(pendingResult) ||
         app.heapProperties.maxPushDataSize < 2 * sizeof(VkDeviceAddress))
     {
-        fail("Invalid push-address buffer alignment, range, or push-data capacity");
+        fail("Invalid mapped-buffer alignment, range, or push-data capacity");
     }
 
     std::cout << std::hex
               << "resourceHeapAddress=0x" << app.resourceHeap.address
               << ", resourceHeapSize=0x" << app.resourceHeap.size << '\n'
               << "reservedRange=[0x0, 0x" << reserved << ")"
-              << ", bufferDescriptorSize=0x" << app.heapProperties.bufferDescriptorSize
-              << ", bufferDescriptorAlignment=0x"
-              << app.heapProperties.bufferDescriptorAlignment << '\n'
-              << "AS source=vkWriteResourceDescriptorsEXT + typed heap load"
+              << '\n'
+              << "AS source=raw TLAS address + Slang OpConvertUToAccelerationStructureKHR"
               << ", shaderStride=0x" << asStride << '\n'
-              << "heapEntryBits=0x" << heapEntryBits
-              << ", writeSize=0x" << entryWriteSize << '\n'
               << "sceneHandle=" << std::dec << sceneHandle << std::hex
               << ", sceneOffset=0x" << asOffset
               << ", TLAS=0x" << app.tlas.address << std::dec << '\n';
@@ -908,7 +872,7 @@ int main(int, char** argv)
         createDescriptorHeapAndBuffers(app);
         createPipeline(app, spirvPath);
 
-        std::cout << "Dispatching descriptor-heap AS ray query...\n";
+        std::cout << "Dispatching Slang descriptor-heap AS ray query...\n";
         const VkResult result = dispatch(app);
         if (result == VK_ERROR_DEVICE_LOST)
         {
