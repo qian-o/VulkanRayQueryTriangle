@@ -1,133 +1,68 @@
-# Vulkan 1.4 descriptor-heap ray-query repro
+# Vulkan descriptor-heap ray-query repro
 
-This repository is a headless C++20 reproduction for an NVIDIA failure when a
-ray query loads an opaque `OpTypeAccelerationStructureKHR` descriptor from
-`VK_EXT_descriptor_heap`.
+Minimal headless C++20 reproduction for a device loss when an inline ray query
+loads its acceleration structure through `VK_EXT_descriptor_heap`.
 
-The host targets Vulkan 1.4 and uses the ratified
-`VK_EXT_descriptor_heap` revision 1 interface. The shader entry under test is a
-Slang descriptor handle, not a pushed acceleration-structure address:
+The Slang 2026.13 shader uses:
 
 ```hlsl
 DescriptorHandle<RaytracingAccelerationStructure> Scene;
 RaytracingAccelerationStructure scene = constants.Scene;
 ```
 
-That entry lowers to a direct opaque acceleration-structure load from the
-`ResourceHeapEXT` built-in in the checked-in SPIR-V.
-
-## Warning
-
-On the affected RTX 3050 Laptop GPU and NVIDIA 610.74 driver, submitting the
-single `1x1x1` dispatch can black out the display and return
-`VK_ERROR_DEVICE_LOST`. Some runs may hang the GPU and desktop hard enough to
-require a system restart. Save other work before running. Building and
-validating the SPIR-V are safe and do not submit the reproducing workload.
+Slang lowers this to an 8-byte load from `ResourceHeapEXT`, followed by
+`OpConvertUToAccelerationStructureKHR`. The host writes the TLAS
+`VkDeviceAddress` returned by `vkGetAccelerationStructureDeviceAddressKHR` to
+that heap element and computes the handle using the emitted 8-byte stride.
 
 ## Requirements
 
-- A C++20 compiler
-- CMake 3.24 or newer
-- A Vulkan 1.4 SDK with `VK_EXT_descriptor_heap` revision 1 headers and loader
-- An NVIDIA device exposing the extensions and features checked by `main.cpp`
+- CMake 3.24 or newer and a C++20 compiler
+- Vulkan SDK 1.4 with `VK_EXT_descriptor_heap` revision 1 headers
+- A device supporting the extensions and features checked by `main.cpp`
+- `VK_LAYER_KHRONOS_validation` for `--validate-only`
 
-CMake locates Vulkan through its standard `FindVulkan` module. Configure the
-Vulkan SDK for your platform so `find_package(Vulkan 1.4)` can locate its
-headers and loader. This repository is validated with Vulkan SDK 1.4.350.
+Tested with Vulkan SDK 1.4.350, an RTX 3050 Laptop GPU, and NVIDIA 610.74.
 
-## Build
+## Build and validate
 
-From this directory:
-
-```sh
+```powershell
 cmake -S . -B build
 cmake --build build --config Release
+spirv-val --target-env vulkan1.4 .\ray_query_heap.spv
+.\build\Release\vulkan_descriptor_heap_ray_query_repro.exe --validate-only
 ```
 
-The executable and copied shader are written under the selected generator's
-build output directory. For a multi-configuration generator such as Visual
-Studio, the Release executable is typically
-`build/Release/vulkan_descriptor_heap_ray_query_repro.exe`. The adjacent
-`ray_query_heap.spv` is shader data loaded by the executable; it is not a
-program and should not be run directly.
+`--validate-only` enables core and synchronization validation and records the
+AS builds and dispatch without queue submission. It completes with no
+validation errors and reports `queue submissions=0` on the tested system.
 
-For a single-configuration generator, configure with
-`-DCMAKE_BUILD_TYPE=Release`; the files are typically placed directly under
-`build/`.
+The checked-in shader is reproducible from `ray_query_heap.slang` with Slang
+2026.13. Its SHA-256 is:
 
-## Run
+```text
+93EBAE20651A003F9B41A72D7CF30E1E26067086A996DA56A861CECC9CE5ADFC
+```
 
-With the Visual Studio generator on Windows, after reading the warning above:
+## Reproduce
+
+Warning: this command may reset or hang the GPU and desktop. Save other work
+before running it.
 
 ```powershell
 .\build\Release\vulkan_descriptor_heap_ray_query_repro.exe
 ```
 
-With a single-configuration generator, the executable is typically run as:
+Expected: the dispatch completes and the shader reports the triangle hit.
 
-```sh
-./build/vulkan_descriptor_heap_ray_query_repro
-```
-
-The program prints the GPU, driver, descriptor sizes, descriptor offset, and
-shader-visible handle before dispatch. It returns:
-
-- `0`: the dispatch completed; the issue did not reproduce
-- `1`: setup or a Vulkan call failed before a recoverable device loss
-- `2`: `VK_ERROR_DEVICE_LOST` was returned and the issue reproduced
-
-A hard GPU or desktop hang may prevent the process from returning an exit code.
-If `VK_EXT_device_fault` is supported and device loss is recoverable, the
-program also prints the available fault information.
-
-## Expected and observed behavior
-
-Expected: the one-ray query completes and `vkWaitForFences` returns success.
-
-Observed on the affected system: the display blacks out during the dispatch,
-then the process returns `VK_ERROR_DEVICE_LOST`. `VK_EXT_device_fault` reports
-one address entry of type
-`VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_UNKNOWN_EXT`. A previous run
-also caused a hard GPU/desktop hang that required a system restart.
-
-## Descriptor layout
-
-The resource heap contains one acceleration-structure descriptor written with
-`vkWriteResourceDescriptorsEXT` and
-`VkResourceDescriptorInfoEXT(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR)`,
-whose data points to a `VkDeviceAddressRangeEXT`.
-The descriptor address comes from `vkGetAccelerationStructureDeviceAddressKHR`.
-The supplied nonzero range covers the TLAS storage allocation; acceleration-
-structure descriptors do not consume the range, but the specification permits
-it as host-side validation of the application's address-range assumptions.
-
-The shader indexes a runtime array of `OpTypeAccelerationStructureKHR`. Its
-`ArrayStrideIdEXT` is `OpConstantSizeOfEXT` for that type. Per the
-`VK_EXT_descriptor_heap` rules, the host mirrors that stride as:
+Observed on the tested system:
 
 ```text
-shaderStride = alignUp(bufferDescriptorSize, bufferDescriptorAlignment)
-asOffset     = alignUp(minResourceHeapReservedRange, shaderStride)
-sceneHandle  = asOffset / shaderStride
+Dispatching descriptor-heap AS ray query...
+REPRODUCED: VK_ERROR_DEVICE_LOST
+Device fault: 1 address info(s), description=''
+  fault[0] type=VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_UNKNOWN_EXT (4), reported=0xd00bf8410, precision=0x10
 ```
 
-On the affected system, the exact acceleration-structure descriptor size is 8
-bytes while the shader-visible buffer descriptor stride is 16 bytes. The exact
-descriptor payload size and the shader array stride are intentionally distinct.
-
-## Shader audit and validation
-
-- `ray_query_heap.slang` is the minimal shader source.
-- `ray_query_heap.spv` is the precompiled module loaded by the executable.
-- `ray_query_heap.spvasm` is the checked-in disassembly for inspection.
-
-The module uses an opaque acceleration-structure load, not a raw `uint64_t`
-load or `OpConvertUToAccelerationStructureKHR`. Its relevant instructions are
-`OpTypeAccelerationStructureKHR`, `OpConstantSizeOfEXT`, `OpLoad`, and
-`OpRayQueryInitializeKHR`.
-
-Validate it without running the workload:
-
-```sh
-spirv-val --target-env vulkan1.4 ray_query_heap.spv
-```
+The process returned exit code `2`. The workload was run once and was not
+repeated.

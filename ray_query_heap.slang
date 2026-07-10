@@ -4,6 +4,7 @@ struct Constants
 };
 
 [[vk::binding(0, 0)]] ConstantBuffer<Constants> constants;
+[[vk::binding(1, 0)]] RWStructuredBuffer<uint> result;
 
 [shader("compute")]
 [numthreads(1, 1, 1)]
@@ -22,4 +23,6 @@ void CSMain()
     while (query.Proceed())
     {
     }
+
+    result[0] = query.CommittedStatus() == COMMITTED_TRIANGLE_HIT ? 1 : 0;
 }
