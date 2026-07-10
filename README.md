@@ -61,26 +61,6 @@ A conforming implementation must not lose the device. A successful run should
 report the expected triangle hit and exit with code 0; the affected driver
 exits with code 2 after device loss.
 
-## Regenerate checked-in artifacts
-
-The checked-in shader artifacts were generated with Slang 2026.13 and have
-SHA-256 `6E4AE43B9756081426AAA378293EF056C2E81CE47A6D8620AE6DEEDEB0A3BB78`.
-
-```powershell
-slangc .\ray_query.slang `
-   -target spirv `
-   -profile glsl_460 `
-   -entry main `
-   -stage compute `
-   -capability spirv_1_4 `
-   -capability spvDescriptorHeapEXT `
-   -capability spvRayQueryKHR `
-   -o .\ray_query.spv
-
-spirv-val --target-env vulkan1.4 .\ray_query.spv
-spirv-dis .\ray_query.spv -o .\ray_query.spvasm
-```
-
 Known failing configuration:
 
 ```text
