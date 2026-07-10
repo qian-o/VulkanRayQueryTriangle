@@ -1,0 +1,86 @@
+               OpCapability RayQueryKHR
+               OpCapability UntypedPointersKHR
+               OpCapability DescriptorHeapEXT
+               OpCapability Shader
+               OpExtension "SPV_KHR_ray_query"
+               OpExtension "SPV_KHR_untyped_pointers"
+               OpExtension "SPV_EXT_descriptor_heap"
+               OpMemoryModel Logical GLSL450
+               OpEntryPoint GLCompute %main "main" %resourceHeap %constants %result
+               OpExecutionMode %main LocalSize 1 1 1
+
+               OpDecorate %Constants Block
+               OpMemberDecorate %Constants 0 Offset 0
+               OpDecorate %constants Binding 0
+               OpDecorate %constants DescriptorSet 0
+               OpDecorateId %asArray ArrayStrideIdEXT %asSize
+               OpDecorate %resourceHeap BuiltIn ResourceHeapEXT
+               OpDecorate %Result Block
+               OpMemberDecorate %Result 0 Offset 0
+               OpDecorate %result Binding 1
+               OpDecorate %result DescriptorSet 0
+
+       %void = OpTypeVoid
+     %voidFn = OpTypeFunction %void
+      %float = OpTypeFloat 32
+    %v3float = OpTypeVector %float 3
+      %uint = OpTypeInt 32 0
+       %bool = OpTypeBool
+   %rayQuery = OpTypeRayQueryKHR
+%rayQueryPtr = OpTypePointer Function %rayQuery
+
+  %Constants = OpTypeStruct %uint
+%constantsPtr = OpTypePointer Uniform %Constants
+%uniformUintPtr = OpTypePointer Uniform %uint
+
+         %as = OpTypeAccelerationStructureKHR
+     %asSize = OpConstantSizeOfEXT %uint %as
+    %asArray = OpTypeRuntimeArray %as
+%heapPointer = OpTypeUntypedPointerKHR UniformConstant
+
+     %Result = OpTypeStruct %uint
+  %resultPtr = OpTypePointer StorageBuffer %Result
+%storageUintPtr = OpTypePointer StorageBuffer %uint
+
+     %uint_0 = OpConstant %uint 0
+     %uint_1 = OpConstant %uint 1
+   %uint_255 = OpConstant %uint 255
+    %float_0 = OpConstant %float 0
+   %float_n1 = OpConstant %float -1
+    %float_1 = OpConstant %float 1
+%float_0_001 = OpConstant %float 0.001
+   %float_10 = OpConstant %float 10
+     %origin = OpConstantComposite %v3float %float_0 %float_0 %float_n1
+  %direction = OpConstantComposite %v3float %float_0 %float_0 %float_1
+
+  %constants = OpVariable %constantsPtr Uniform
+%resourceHeap = OpUntypedVariableKHR %heapPointer UniformConstant
+     %result = OpVariable %resultPtr StorageBuffer
+
+       %main = OpFunction %void None %voidFn
+      %entry = OpLabel
+      %query = OpVariable %rayQueryPtr Function
+%handlePointer = OpAccessChain %uniformUintPtr %constants %uint_0
+     %handle = OpLoad %uint %handlePointer
+%scenePointer = OpUntypedAccessChainKHR %heapPointer %asArray %resourceHeap %handle
+      %scene = OpLoad %as %scenePointer
+               OpRayQueryInitializeKHR %query %scene %uint_0 %uint_255 %origin %float_0_001 %direction %float_10
+               OpBranch %loop
+
+       %loop = OpLabel
+               OpLoopMerge %done %continue None
+               OpBranch %body
+       %body = OpLabel
+    %proceed = OpRayQueryProceedKHR %bool %query
+               OpBranchConditional %proceed %continue %done
+   %continue = OpLabel
+               OpBranch %loop
+
+       %done = OpLabel
+%intersection = OpRayQueryGetIntersectionTypeKHR %uint %query %uint_1
+        %hit = OpIEqual %bool %intersection %uint_1
+   %hitValue = OpSelect %uint %hit %uint_1 %uint_0
+%resultPointer = OpAccessChain %storageUintPtr %result %uint_0
+               OpStore %resultPointer %hitValue
+               OpReturn
+               OpFunctionEnd

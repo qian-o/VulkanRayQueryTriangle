@@ -10,7 +10,6 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
-#include <string_view>
 #include <vector>
 
 static_assert(VK_HEADER_VERSION_COMPLETE >= VK_API_VERSION_1_4,
@@ -77,34 +76,6 @@ bool hasExtension(VkPhysicalDevice physicalDevice, const char* name)
     });
 }
 
-bool hasInstanceLayer(const char* name)
-{
-    uint32_t count = 0;
-    check(vkEnumerateInstanceLayerProperties(&count, nullptr),
-          "vkEnumerateInstanceLayerProperties(count)");
-    std::vector<VkLayerProperties> layers(count);
-    check(vkEnumerateInstanceLayerProperties(&count, layers.data()),
-          "vkEnumerateInstanceLayerProperties(data)");
-    return std::any_of(layers.begin(), layers.end(), [name](const auto& layer)
-    {
-        return std::strcmp(layer.layerName, name) == 0;
-    });
-}
-
-bool hasInstanceExtension(const char* layerName, const char* name)
-{
-    uint32_t count = 0;
-    check(vkEnumerateInstanceExtensionProperties(layerName, &count, nullptr),
-          "vkEnumerateInstanceExtensionProperties(count)");
-    std::vector<VkExtensionProperties> extensions(count);
-    check(vkEnumerateInstanceExtensionProperties(layerName, &count, extensions.data()),
-          "vkEnumerateInstanceExtensionProperties(data)");
-    return std::any_of(extensions.begin(), extensions.end(), [name](const auto& extension)
-    {
-        return std::strcmp(extension.extensionName, name) == 0;
-    });
-}
-
 uint32_t findMemoryType(VkPhysicalDevice physicalDevice,
                         uint32_t memoryTypeBits,
                         VkMemoryPropertyFlags required)
@@ -156,8 +127,6 @@ struct Functions
     PFN_vkWriteResourceDescriptorsEXT writeResourceDescriptors = nullptr;
     PFN_vkCmdBindResourceHeapEXT cmdBindResourceHeap = nullptr;
     PFN_vkCmdPushDataEXT cmdPushData = nullptr;
-
-    PFN_vkGetDeviceFaultInfoEXT getDeviceFaultInfo = nullptr;
 };
 
 struct App
@@ -187,7 +156,6 @@ struct App
     VkPipeline pipeline = VK_NULL_HANDLE;
 
     bool deviceLost = false;
-    uint32_t queueSubmissionCount = 0;
 };
 
 Buffer createBuffer(App& app,
@@ -262,46 +230,15 @@ T loadInstanceFunction(VkInstance instance, const char* name)
     return function;
 }
 
-void initializeVulkan(App& app, bool validateOnly)
+void initializeVulkan(App& app)
 {
     VkApplicationInfo application{VK_STRUCTURE_TYPE_APPLICATION_INFO};
     application.pApplicationName = "VulkanDescriptorHeapRayQueryRepro";
     application.apiVersion = VK_API_VERSION_1_4;
 
-    constexpr const char* validationLayer = "VK_LAYER_KHRONOS_validation";
-    constexpr const char* layerSettingsExtension = VK_EXT_LAYER_SETTINGS_EXTENSION_NAME;
-    const VkBool32 enableSynchronizationValidation = VK_TRUE;
-    VkLayerSettingEXT synchronizationSetting{};
-    synchronizationSetting.pLayerName = validationLayer;
-    synchronizationSetting.pSettingName = "validate_sync";
-    synchronizationSetting.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT;
-    synchronizationSetting.valueCount = 1;
-    synchronizationSetting.pValues = &enableSynchronizationValidation;
-    VkLayerSettingsCreateInfoEXT layerSettings{
-        VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT};
-    layerSettings.settingCount = 1;
-    layerSettings.pSettings = &synchronizationSetting;
-
     VkInstanceCreateInfo instanceInfo{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
     instanceInfo.pApplicationInfo = &application;
-    if (validateOnly)
-    {
-        if (!hasInstanceLayer(validationLayer) ||
-            !hasInstanceExtension(validationLayer, VK_EXT_LAYER_SETTINGS_EXTENSION_NAME))
-        {
-            fail("--validate-only requires VK_LAYER_KHRONOS_validation with VK_EXT_layer_settings");
-        }
-        instanceInfo.pNext = &layerSettings;
-        instanceInfo.enabledLayerCount = 1;
-        instanceInfo.ppEnabledLayerNames = &validationLayer;
-        instanceInfo.enabledExtensionCount = 1;
-        instanceInfo.ppEnabledExtensionNames = &layerSettingsExtension;
-    }
     check(vkCreateInstance(&instanceInfo, nullptr, &app.instance), "vkCreateInstance");
-    if (validateOnly)
-    {
-        std::cout << "Validation: VK_LAYER_KHRONOS_validation with validate_sync=true\n";
-    }
 
     uint32_t deviceCount = 0;
     check(vkEnumeratePhysicalDevices(app.instance, &deviceCount, nullptr),
@@ -374,9 +311,6 @@ void initializeVulkan(App& app, bool validateOnly)
         fail("No compute queue family found");
     }
 
-    const bool hasDeviceFault = hasExtension(app.physicalDevice, VK_EXT_DEVICE_FAULT_EXTENSION_NAME);
-    std::vector<const char*> enabledExtensions(requiredExtensions.begin(), requiredExtensions.end());
-
     VkPhysicalDeviceVulkan12Features supportedVulkan12{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};
     VkPhysicalDeviceVulkan13Features supportedVulkan13{
@@ -391,8 +325,6 @@ void initializeVulkan(App& app, bool validateOnly)
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_UNTYPED_POINTERS_FEATURES_KHR};
     VkPhysicalDeviceDescriptorHeapFeaturesEXT supportedDescriptorHeap{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_FEATURES_EXT};
-    VkPhysicalDeviceFaultFeaturesEXT supportedDeviceFault{
-        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FAULT_FEATURES_EXT};
     VkPhysicalDeviceFeatures2 supportedFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
 
     supportedFeatures.pNext = &supportedVulkan12;
@@ -402,22 +334,14 @@ void initializeVulkan(App& app, bool validateOnly)
     supportedAccelerationStructure.pNext = &supportedRayQuery;
     supportedRayQuery.pNext = &supportedUntypedPointers;
     supportedUntypedPointers.pNext = &supportedDescriptorHeap;
-    supportedDescriptorHeap.pNext = hasDeviceFault ? &supportedDeviceFault : nullptr;
     vkGetPhysicalDeviceFeatures2(app.physicalDevice, &supportedFeatures);
 
-    if (!supportedFeatures.features.shaderInt64 ||
-        !supportedVulkan12.bufferDeviceAddress || !supportedVulkan13.synchronization2 ||
+    if (!supportedVulkan12.bufferDeviceAddress || !supportedVulkan13.synchronization2 ||
         !supportedAccelerationStructure.accelerationStructure || !supportedRayQuery.rayQuery ||
         !supportedUntypedPointers.shaderUntypedPointers || !supportedDescriptorHeap.descriptorHeap ||
         !supportedVulkan14.maintenance5)
     {
         fail("A required Vulkan feature is unavailable");
-    }
-
-    const bool enableDeviceFault = hasDeviceFault && supportedDeviceFault.deviceFault;
-    if (enableDeviceFault)
-    {
-        enabledExtensions.push_back(VK_EXT_DEVICE_FAULT_EXTENSION_NAME);
     }
 
     VkPhysicalDeviceVulkan12Features enabledVulkan12{
@@ -441,11 +365,7 @@ void initializeVulkan(App& app, bool validateOnly)
     VkPhysicalDeviceDescriptorHeapFeaturesEXT enabledDescriptorHeap{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_FEATURES_EXT};
     enabledDescriptorHeap.descriptorHeap = VK_TRUE;
-    VkPhysicalDeviceFaultFeaturesEXT enabledDeviceFault{
-        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FAULT_FEATURES_EXT};
-    enabledDeviceFault.deviceFault = enableDeviceFault;
     VkPhysicalDeviceFeatures2 enabledFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
-    enabledFeatures.features.shaderInt64 = VK_TRUE;
 
     enabledFeatures.pNext = &enabledVulkan12;
     enabledVulkan12.pNext = &enabledVulkan13;
@@ -454,7 +374,6 @@ void initializeVulkan(App& app, bool validateOnly)
     enabledAccelerationStructure.pNext = &enabledRayQuery;
     enabledRayQuery.pNext = &enabledUntypedPointers;
     enabledUntypedPointers.pNext = &enabledDescriptorHeap;
-    enabledDescriptorHeap.pNext = enableDeviceFault ? &enabledDeviceFault : nullptr;
 
     float priority = 1.0f;
     VkDeviceQueueCreateInfo queueInfo{VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};
@@ -466,8 +385,8 @@ void initializeVulkan(App& app, bool validateOnly)
     deviceInfo.pNext = &enabledFeatures;
     deviceInfo.queueCreateInfoCount = 1;
     deviceInfo.pQueueCreateInfos = &queueInfo;
-    deviceInfo.enabledExtensionCount = static_cast<uint32_t>(enabledExtensions.size());
-    deviceInfo.ppEnabledExtensionNames = enabledExtensions.data();
+    deviceInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
+    deviceInfo.ppEnabledExtensionNames = requiredExtensions.data();
     check(vkCreateDevice(app.physicalDevice, &deviceInfo, nullptr, &app.device), "vkCreateDevice");
     vkGetDeviceQueue(app.device, app.queueFamily, 0, &app.queue);
 
@@ -488,11 +407,6 @@ void initializeVulkan(App& app, bool validateOnly)
     app.fn.cmdBindResourceHeap = loadDeviceFunction<PFN_vkCmdBindResourceHeapEXT>(
         app.device, "vkCmdBindResourceHeapEXT");
     app.fn.cmdPushData = loadDeviceFunction<PFN_vkCmdPushDataEXT>(app.device, "vkCmdPushDataEXT");
-    if (enableDeviceFault)
-    {
-        app.fn.getDeviceFaultInfo = loadDeviceFunction<PFN_vkGetDeviceFaultInfoEXT>(
-            app.device, "vkGetDeviceFaultInfoEXT");
-    }
 
     app.heapProperties.pNext = &app.accelerationStructureProperties;
     VkPhysicalDeviceProperties2 properties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
@@ -533,7 +447,6 @@ VkResult submitAndWait(App& app, VkCommandBuffer commandBuffer)
     VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
     submit.commandBufferCount = 1;
     submit.pCommandBuffers = &commandBuffer;
-    ++app.queueSubmissionCount;
     VkResult result = vkQueueSubmit(app.queue, 1, &submit, fence);
     if (result == VK_SUCCESS)
     {
@@ -573,7 +486,7 @@ void barrier(VkCommandBuffer commandBuffer,
     vkCmdPipelineBarrier2(commandBuffer, &dependency);
 }
 
-void buildAccelerationStructures(App& app, bool submit)
+void buildAccelerationStructures(App& app)
 {
     const std::array<float, 12> vertices{
          0.0f,  0.5f, 0.0f, 0.0f,
@@ -727,36 +640,26 @@ void buildAccelerationStructures(App& app, bool submit)
             VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
             VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR);
 
-    if (!submit)
-    {
-        check(vkEndCommandBuffer(commandBuffer), "vkEndCommandBuffer(AS validation only)");
-        vkFreeCommandBuffers(app.device, app.commandPool, 1, &commandBuffer);
-        return;
-    }
-
     const VkResult result = submitAndWait(app, commandBuffer);
     check(result, "AS build submission");
 }
 
-void createDescriptorHeapsAndConstants(App& app)
+void createDescriptorHeapAndBuffers(App& app)
 {
     const VkDeviceSize reserved = app.heapProperties.minResourceHeapReservedRange;
-    const VkDeviceSize asStride = sizeof(VkDeviceAddress);
-    const VkDeviceSize asDescriptorSize = app.fn.getPhysicalDeviceDescriptorSize(
+    const VkDeviceSize entryWriteSize = app.fn.getPhysicalDeviceDescriptorSize(
         app.physicalDevice, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
+    const VkDeviceSize asDescriptorAlignment = std::max<VkDeviceSize>(
+        app.heapProperties.bufferDescriptorAlignment, 1);
+    const VkDeviceSize asStride = alignUp(app.heapProperties.bufferDescriptorSize,
+                                          asDescriptorAlignment);
     if (app.heapProperties.resourceHeapAlignment == 0)
     {
         fail("Descriptor heap alignment is zero");
     }
-    if (asDescriptorSize != asStride)
-    {
-        fail("Acceleration-structure descriptor size does not match the shader's 8-byte heap stride");
-    }
 
-    const VkDeviceSize asAlignment = std::max<VkDeviceSize>(
-        app.heapProperties.bufferDescriptorAlignment, asStride);
-    const VkDeviceSize asOffset = alignUp(reserved, asAlignment);
-    const VkDeviceSize usedSize = asOffset + asDescriptorSize;
+    const VkDeviceSize asOffset = alignUp(reserved, asStride);
+    const VkDeviceSize usedSize = asOffset + asStride;
     const VkDeviceSize totalSize = alignUp(usedSize, app.heapProperties.resourceHeapAlignment);
 
     app.resourceHeap = createBuffer(app,
@@ -764,11 +667,12 @@ void createDescriptorHeapsAndConstants(App& app)
                                     VK_BUFFER_USAGE_DESCRIPTOR_HEAP_BIT_EXT,
                                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-    if ((asOffset % asAlignment) != 0 ||
+    if ((asOffset % asDescriptorAlignment) != 0 ||
+        ((app.resourceHeap.address + asOffset) % asDescriptorAlignment) != 0 ||
+        entryWriteSize > asStride ||
         totalSize > app.heapProperties.maxResourceHeapSize ||
         reserved > totalSize ||
         (app.resourceHeap.address % app.heapProperties.resourceHeapAlignment) != 0 ||
-        (app.resourceHeap.address % asStride) != 0 ||
         (app.tlas.address % 256) != 0 ||
         app.tlas.size == 0 ||
         (asOffset / asStride) > std::numeric_limits<uint32_t>::max())
@@ -778,23 +682,22 @@ void createDescriptorHeapsAndConstants(App& app)
 
     const uint32_t sceneHandle = static_cast<uint32_t>(asOffset / asStride);
     auto* sceneSlot = static_cast<std::byte*>(app.resourceHeap.mapped) + asOffset;
+    std::memset(sceneSlot, 0, static_cast<size_t>(asStride));
     VkDeviceAddressRangeEXT addressRange{app.tlas.address, 0};
     VkResourceDescriptorInfoEXT descriptor{VK_STRUCTURE_TYPE_RESOURCE_DESCRIPTOR_INFO_EXT};
     descriptor.type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
     descriptor.data.pAddressRange = &addressRange;
-    VkHostAddressRangeEXT target{sceneSlot, static_cast<size_t>(asDescriptorSize)};
+    VkHostAddressRangeEXT target{sceneSlot, static_cast<size_t>(entryWriteSize)};
     check(app.fn.writeResourceDescriptors(app.device, 1, &descriptor, &target),
           "vkWriteResourceDescriptorsEXT(acceleration structure)");
 
-    uint64_t descriptorPayload = 0;
-    std::memcpy(&descriptorPayload, sceneSlot, sizeof(descriptorPayload));
+    uint64_t heapEntryBits = 0;
+    std::memcpy(&heapEntryBits, sceneSlot, sizeof(heapEntryBits));
 
     struct Constants
     {
         uint32_t sceneHandle;
-        uint32_t sceneHandleY;
     } constants{};
-    static_assert(sizeof(Constants) == 8);
     constants.sceneHandle = sceneHandle;
 
     app.constantsBuffer = createBuffer(app,
@@ -827,18 +730,21 @@ void createDescriptorHeapsAndConstants(App& app)
     std::cout << std::hex
               << "resourceHeapAddress=0x" << app.resourceHeap.address
               << ", resourceHeapSize=0x" << app.resourceHeap.size << '\n'
-              << "AS descriptor=vkWriteResourceDescriptorsEXT"
+              << "reservedRange=[0x0, 0x" << reserved << ")"
+              << ", bufferDescriptorSize=0x" << app.heapProperties.bufferDescriptorSize
+              << ", bufferDescriptorAlignment=0x"
+              << app.heapProperties.bufferDescriptorAlignment << '\n'
+              << "AS source=vkWriteResourceDescriptorsEXT + typed heap load"
               << ", shaderStride=0x" << asStride << '\n'
-              << "opaqueDescriptorPayload=0x" << descriptorPayload
-              << ", descriptorSize=0x" << asDescriptorSize << '\n'
+              << "heapEntryBits=0x" << heapEntryBits
+              << ", writeSize=0x" << entryWriteSize << '\n'
               << "sceneHandle=" << std::dec << sceneHandle << std::hex
               << ", sceneOffset=0x" << asOffset
               << ", TLAS=0x" << app.tlas.address << std::dec << '\n';
 }
 
 void createPipeline(App& app,
-                    const std::filesystem::path& spirvPath,
-                    const char* entryPoint)
+                    const std::filesystem::path& spirvPath)
 {
     const std::vector<uint32_t> spirv = readSpirv(spirvPath);
 
@@ -873,7 +779,7 @@ void createPipeline(App& app,
     VkPipelineShaderStageCreateInfo stage{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
     stage.pNext = &mappingInfo;
     stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-    stage.pName = entryPoint;
+    stage.pName = "main";
 
     VkPipelineCreateFlags2CreateInfo flags{VK_STRUCTURE_TYPE_PIPELINE_CREATE_FLAGS_2_CREATE_INFO};
     flags.flags = VK_PIPELINE_CREATE_2_DESCRIPTOR_HEAP_BIT_EXT;
@@ -890,74 +796,7 @@ void createPipeline(App& app,
           "vkCreateComputePipelines");
 }
 
-const char* deviceFaultAddressTypeName(VkDeviceFaultAddressTypeEXT type)
-{
-    switch (type)
-    {
-    case VK_DEVICE_FAULT_ADDRESS_TYPE_NONE_EXT:
-        return "VK_DEVICE_FAULT_ADDRESS_TYPE_NONE_EXT";
-    case VK_DEVICE_FAULT_ADDRESS_TYPE_READ_INVALID_EXT:
-        return "VK_DEVICE_FAULT_ADDRESS_TYPE_READ_INVALID_EXT";
-    case VK_DEVICE_FAULT_ADDRESS_TYPE_WRITE_INVALID_EXT:
-        return "VK_DEVICE_FAULT_ADDRESS_TYPE_WRITE_INVALID_EXT";
-    case VK_DEVICE_FAULT_ADDRESS_TYPE_EXECUTE_INVALID_EXT:
-        return "VK_DEVICE_FAULT_ADDRESS_TYPE_EXECUTE_INVALID_EXT";
-    case VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_UNKNOWN_EXT:
-        return "VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_UNKNOWN_EXT";
-    case VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_INVALID_EXT:
-        return "VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_INVALID_EXT";
-    case VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_FAULT_EXT:
-        return "VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_FAULT_EXT";
-    default:
-        return "VK_DEVICE_FAULT_ADDRESS_TYPE_UNKNOWN";
-    }
-}
-
-void dumpDeviceFault(App& app)
-{
-    if (!app.fn.getDeviceFaultInfo)
-    {
-        std::cout << "VK_EXT_device_fault is unavailable\n";
-        return;
-    }
-
-    VkDeviceFaultCountsEXT counts{VK_STRUCTURE_TYPE_DEVICE_FAULT_COUNTS_EXT};
-    VkResult result = app.fn.getDeviceFaultInfo(app.device, &counts, nullptr);
-    if (result != VK_SUCCESS)
-    {
-        std::cout << "vkGetDeviceFaultInfoEXT(counts) returned " << result << '\n';
-        return;
-    }
-
-    counts.vendorBinarySize = 0;
-    std::vector<VkDeviceFaultAddressInfoEXT> addresses(counts.addressInfoCount);
-    std::vector<VkDeviceFaultVendorInfoEXT> vendors(counts.vendorInfoCount);
-    VkDeviceFaultInfoEXT info{VK_STRUCTURE_TYPE_DEVICE_FAULT_INFO_EXT};
-    info.pAddressInfos = addresses.empty() ? nullptr : addresses.data();
-    info.pVendorInfos = vendors.empty() ? nullptr : vendors.data();
-    info.pVendorBinaryData = nullptr;
-
-    result = app.fn.getDeviceFaultInfo(app.device, &counts, &info);
-    if (result != VK_SUCCESS && result != VK_INCOMPLETE)
-    {
-        std::cout << "vkGetDeviceFaultInfoEXT(info) returned " << result << '\n';
-        return;
-    }
-
-    std::cout << "Device fault: " << counts.addressInfoCount << " address info(s), description='"
-              << info.description << "'\n";
-    for (uint32_t index = 0; index < counts.addressInfoCount; ++index)
-    {
-        const auto& address = addresses[index];
-        std::cout << "  fault[" << index << "] type="
-                  << deviceFaultAddressTypeName(address.addressType)
-                  << " (" << address.addressType << ')'
-                  << ", reported=0x" << std::hex << address.reportedAddress
-                  << ", precision=0x" << address.addressPrecision << std::dec << '\n';
-    }
-}
-
-VkResult dispatch(App& app, bool submit)
+VkResult dispatch(App& app)
 {
     VkCommandBuffer commandBuffer = beginCommandBuffer(app);
 
@@ -986,13 +825,6 @@ VkResult dispatch(App& app, bool submit)
     resultDependency.memoryBarrierCount = 1;
     resultDependency.pMemoryBarriers = &resultBarrier;
     vkCmdPipelineBarrier2(commandBuffer, &resultDependency);
-
-    if (!submit)
-    {
-        check(vkEndCommandBuffer(commandBuffer), "vkEndCommandBuffer(validation only)");
-        vkFreeCommandBuffers(app.device, app.commandPool, 1, &commandBuffer);
-        return VK_SUCCESS;
-    }
 
     return submitAndWait(app, commandBuffer);
 }
@@ -1062,54 +894,26 @@ void cleanup(App& app)
 
 } // namespace
 
-int main(int argc, char** argv)
+int main(int, char** argv)
 {
     App app{};
     try
     {
-        bool validateOnly = false;
-        for (int index = 1; index < argc; ++index)
-        {
-            const std::string_view argument = argv[index];
-            if (argument == "--validate-only" && !validateOnly)
-            {
-                validateOnly = true;
-            }
-            else
-            {
-                fail("Usage: vulkan_descriptor_heap_ray_query_repro [--validate-only]");
-            }
-        }
-
         const std::filesystem::path executableDirectory =
             std::filesystem::path(argv[0]).parent_path();
-        const std::filesystem::path spirvPath = executableDirectory / "ray_query_heap.spv";
+        const std::filesystem::path spirvPath = executableDirectory / "ray_query.spv";
 
-        initializeVulkan(app, validateOnly);
-        buildAccelerationStructures(app, !validateOnly);
-        createDescriptorHeapsAndConstants(app);
-        createPipeline(app, spirvPath, "CSMain");
-
-        if (validateOnly)
-        {
-            check(dispatch(app, false), "validation-only command recording");
-            if (app.queueSubmissionCount != 0)
-            {
-                fail("--validate-only attempted a queue submission");
-            }
-            std::cout << "Validation-only AS build and ray-query dispatch recording completed; "
-                         "queue submissions=0.\n";
-            cleanup(app);
-            return 0;
-        }
+        initializeVulkan(app);
+        buildAccelerationStructures(app);
+        createDescriptorHeapAndBuffers(app);
+        createPipeline(app, spirvPath);
 
         std::cout << "Dispatching descriptor-heap AS ray query...\n";
-        const VkResult result = dispatch(app, true);
+        const VkResult result = dispatch(app);
         if (result == VK_ERROR_DEVICE_LOST)
         {
             app.deviceLost = true;
             std::cout << "REPRODUCED: VK_ERROR_DEVICE_LOST\n";
-            dumpDeviceFault(app);
             cleanup(app);
             return 2;
         }
