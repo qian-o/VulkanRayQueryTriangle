@@ -1,0 +1,171 @@
+; SPIR-V
+; Version: 1.6
+; Generator: Google spiregg; 0
+; Bound: 113
+; Schema: 0
+               OpCapability RayQueryKHR
+               OpCapability Shader
+               OpCapability RuntimeDescriptorArray
+               OpExtension "SPV_KHR_ray_query"
+               OpExtension "SPV_EXT_descriptor_indexing"
+               OpMemoryModel Logical GLSL450
+               OpEntryPoint GLCompute %CSMain "CSMain" %gl_GlobalInvocationID %constants %ResourceDescriptorHeap %ResourceDescriptorHeap_0
+               OpExecutionMode %CSMain LocalSize 16 16 1
+               OpSource HLSL 660
+               OpName %type_ConstantBuffer_Constants "type.ConstantBuffer.Constants"
+               OpMemberName %type_ConstantBuffer_Constants 0 "Width"
+               OpMemberName %type_ConstantBuffer_Constants 1 "Height"
+               OpMemberName %type_ConstantBuffer_Constants 2 "Scene"
+               OpMemberName %type_ConstantBuffer_Constants 3 "Output"
+               OpName %constants "constants"
+               OpName %accelerationStructureNV "accelerationStructureNV"
+               OpName %ResourceDescriptorHeap "ResourceDescriptorHeap"
+               OpName %type_2d_image "type.2d.image"
+               OpName %ResourceDescriptorHeap_0 "ResourceDescriptorHeap"
+               OpName %CSMain "CSMain"
+               OpName %rayQueryKHR "rayQueryKHR"
+               OpDecorate %gl_GlobalInvocationID BuiltIn GlobalInvocationId
+               OpDecorate %constants DescriptorSet 0
+               OpDecorate %constants Binding 0
+               OpDecorate %ResourceDescriptorHeap DescriptorSet 0
+               OpDecorate %ResourceDescriptorHeap Binding 1
+               OpDecorate %ResourceDescriptorHeap_0 DescriptorSet 0
+               OpDecorate %ResourceDescriptorHeap_0 Binding 1
+               OpMemberDecorate %type_ConstantBuffer_Constants 0 Offset 0
+               OpMemberDecorate %type_ConstantBuffer_Constants 1 Offset 4
+               OpMemberDecorate %type_ConstantBuffer_Constants 2 Offset 8
+               OpMemberDecorate %type_ConstantBuffer_Constants 3 Offset 12
+               OpDecorate %type_ConstantBuffer_Constants Block
+        %int = OpTypeInt 32 1
+      %int_0 = OpConstant %int 0
+       %bool = OpTypeBool
+       %true = OpConstantTrue %bool
+      %int_1 = OpConstant %int 1
+      %float = OpTypeFloat 32
+  %float_0_5 = OpConstant %float 0.5
+    %v2float = OpTypeVector %float 2
+         %18 = OpConstantComposite %v2float %float_0_5 %float_0_5
+    %float_2 = OpConstant %float 2
+    %float_1 = OpConstant %float 1
+         %21 = OpConstantComposite %v2float %float_1 %float_1
+       %uint = OpTypeInt 32 0
+     %uint_1 = OpConstant %uint 1
+   %float_n1 = OpConstant %float -1
+    %float_0 = OpConstant %float 0
+    %v3float = OpTypeVector %float 3
+         %27 = OpConstantComposite %v3float %float_0 %float_0 %float_1
+      %int_2 = OpConstant %int 2
+%float_0_00100000005 = OpConstant %float 0.00100000005
+%float_100000 = OpConstant %float 100000
+      %int_3 = OpConstant %int 3
+     %uint_0 = OpConstant %uint 0
+   %uint_255 = OpConstant %uint 255
+%float_0_0500000007 = OpConstant %float 0.0500000007
+%float_0_0799999982 = OpConstant %float 0.0799999982
+         %36 = OpConstantComposite %v3float %float_0_0500000007 %float_0_0500000007 %float_0_0799999982
+%type_ConstantBuffer_Constants = OpTypeStruct %uint %uint %uint %uint
+%_ptr_Uniform_type_ConstantBuffer_Constants = OpTypePointer Uniform %type_ConstantBuffer_Constants
+     %v3uint = OpTypeVector %uint 3
+%_ptr_Input_v3uint = OpTypePointer Input %v3uint
+%accelerationStructureNV = OpTypeAccelerationStructureKHR
+%_runtimearr_accelerationStructureNV = OpTypeRuntimeArray %accelerationStructureNV
+%_ptr_UniformConstant__runtimearr_accelerationStructureNV = OpTypePointer UniformConstant %_runtimearr_accelerationStructureNV
+%type_2d_image = OpTypeImage %float 2D 2 0 0 2 Rgba32f
+%_runtimearr_type_2d_image = OpTypeRuntimeArray %type_2d_image
+%_ptr_UniformConstant__runtimearr_type_2d_image = OpTypePointer UniformConstant %_runtimearr_type_2d_image
+       %void = OpTypeVoid
+         %45 = OpTypeFunction %void
+     %v2uint = OpTypeVector %uint 2
+%rayQueryKHR = OpTypeRayQueryKHR
+%_ptr_Function_rayQueryKHR = OpTypePointer Function %rayQueryKHR
+%_ptr_Uniform_uint = OpTypePointer Uniform %uint
+%_ptr_UniformConstant_accelerationStructureNV = OpTypePointer UniformConstant %accelerationStructureNV
+%_ptr_UniformConstant_type_2d_image = OpTypePointer UniformConstant %type_2d_image
+    %v4float = OpTypeVector %float 4
+  %constants = OpVariable %_ptr_Uniform_type_ConstantBuffer_Constants Uniform
+%gl_GlobalInvocationID = OpVariable %_ptr_Input_v3uint Input
+%ResourceDescriptorHeap = OpVariable %_ptr_UniformConstant__runtimearr_accelerationStructureNV UniformConstant
+%ResourceDescriptorHeap_0 = OpVariable %_ptr_UniformConstant__runtimearr_type_2d_image UniformConstant
+     %CSMain = OpFunction %void None %45
+         %52 = OpLabel
+         %53 = OpVariable %_ptr_Function_rayQueryKHR Function
+         %54 = OpLoad %v3uint %gl_GlobalInvocationID
+               OpSelectionMerge %55 None
+               OpSwitch %uint_0 %56
+         %56 = OpLabel
+         %57 = OpVectorShuffle %v2uint %54 %54 0 1
+         %58 = OpCompositeExtract %uint %54 0
+         %59 = OpAccessChain %_ptr_Uniform_uint %constants %int_0
+         %60 = OpLoad %uint %59
+         %61 = OpULessThan %bool %58 %60
+               OpSelectionMerge %62 None
+               OpBranchConditional %61 %63 %62
+         %63 = OpLabel
+         %64 = OpCompositeExtract %uint %54 1
+         %65 = OpAccessChain %_ptr_Uniform_uint %constants %int_1
+         %66 = OpLoad %uint %65
+         %67 = OpUGreaterThanEqual %bool %64 %66
+               OpBranch %62
+         %62 = OpLabel
+         %68 = OpPhi %bool %true %56 %67 %63
+               OpSelectionMerge %69 None
+               OpBranchConditional %68 %70 %69
+         %70 = OpLabel
+               OpBranch %55
+         %69 = OpLabel
+         %71 = OpConvertUToF %v2float %57
+         %72 = OpFAdd %v2float %71 %18
+         %73 = OpConvertUToF %float %60
+         %74 = OpAccessChain %_ptr_Uniform_uint %constants %int_1
+         %75 = OpLoad %uint %74
+         %76 = OpConvertUToF %float %75
+         %77 = OpCompositeConstruct %v2float %73 %76
+         %78 = OpFDiv %v2float %72 %77
+         %79 = OpVectorTimesScalar %v2float %78 %float_2
+         %80 = OpFSub %v2float %79 %21
+         %81 = OpCompositeExtract %float %80 1
+         %82 = OpFNegate %float %81
+         %83 = OpCompositeExtract %float %80 0
+         %84 = OpCompositeConstruct %v3float %83 %82 %float_n1
+         %85 = OpAccessChain %_ptr_Uniform_uint %constants %int_2
+         %86 = OpLoad %uint %85
+         %87 = OpAccessChain %_ptr_UniformConstant_accelerationStructureNV %ResourceDescriptorHeap %86
+         %88 = OpLoad %accelerationStructureNV %87
+               OpRayQueryInitializeKHR %53 %88 %uint_0 %uint_255 %84 %float_0_00100000005 %27 %float_100000
+               OpBranch %89
+         %89 = OpLabel
+         %90 = OpRayQueryProceedKHR %bool %53
+               OpLoopMerge %91 %92 None
+               OpBranchConditional %90 %92 %91
+         %92 = OpLabel
+               OpBranch %89
+         %91 = OpLabel
+         %93 = OpRayQueryGetIntersectionTypeKHR %uint %53 %uint_1
+         %94 = OpINotEqual %bool %93 %uint_0
+               OpSelectionMerge %95 None
+               OpBranchConditional %94 %96 %97
+         %96 = OpLabel
+         %98 = OpRayQueryGetIntersectionBarycentricsKHR %v2float %53 %uint_1
+         %99 = OpCompositeExtract %float %98 0
+        %100 = OpFSub %float %float_1 %99
+        %101 = OpCompositeExtract %float %98 1
+        %102 = OpFSub %float %100 %101
+        %103 = OpCompositeConstruct %v3float %102 %99 %101
+               OpBranch %95
+         %97 = OpLabel
+               OpBranch %95
+         %95 = OpLabel
+        %104 = OpPhi %v3float %103 %96 %36 %97
+        %105 = OpAccessChain %_ptr_Uniform_uint %constants %int_3
+        %106 = OpLoad %uint %105
+        %107 = OpAccessChain %_ptr_UniformConstant_type_2d_image %ResourceDescriptorHeap_0 %106
+        %108 = OpLoad %type_2d_image %107
+        %109 = OpCompositeExtract %float %104 0
+        %110 = OpCompositeExtract %float %104 1
+        %111 = OpCompositeExtract %float %104 2
+        %112 = OpCompositeConstruct %v4float %109 %110 %111 %float_1
+               OpImageWrite %108 %57 %112 None
+               OpBranch %55
+         %55 = OpLabel
+               OpReturn
+               OpFunctionEnd

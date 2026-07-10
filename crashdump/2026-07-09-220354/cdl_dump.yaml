@@ -1,0 +1,167 @@
+# ----------------------------------------------------------------
+# -                    CRASH DIAGNOSTIC LAYER                    -
+# ----------------------------------------------------------------
+
+version: 1.4.350
+startTime: 2026-07-09 22:03:54
+timeSinceStart: 00:00:02.439
+Settings:
+  output_path: C:/Users/13247/Desktop/VulkanRayQueryTriangle/crashdump
+  trace_on: false
+  dump_queue_submits: running
+  dump_command_buffers: running
+  dump_commands: running
+  dump_shaders: on_crash
+  trigger_watchdog_timeout: true
+  watchdog_timeout_ms: 10000
+  track_semaphores: true
+  trace_all_semaphores: false
+  instrument_all_commands: true
+  sync_after_commands: true
+SystemInfo:
+  osName: Windows 10 Pro
+  osVersion: 26200
+  osBitdepth: 64-bit
+  osAdditional:
+    build: ge_release
+  cpuName: x64
+  numCpus: 28
+  totalRam: 47 GB
+  totalDiskSpace: 930 GB
+  availDiskSpace: 302 GB
+Instance:
+  handle: 0x0000016BE8304880 []
+  applicationInfo:
+    application: VulkanRayQueryTriangle
+    applicationVersion: 0
+    engine: None
+    engineVersion: 0
+    apiVersion: 1.4.0 (0x00404000)
+  extensions:
+    - VK_KHR_surface
+    - VK_KHR_win32_surface
+    - VK_EXT_debug_utils
+Device:
+  handle: 0x0000016BA89000D0[]
+  deviceName: NVIDIA GeForce RTX 4070 Ti SUPER
+  apiVersion: 1.4.341 (0x00404155)
+  driverVersion: 0x98928000 (2559737856)
+  vendorID: 0x000010DE
+  deviceID: 0x00002705
+  extensions:
+    - VK_EXT_descriptor_heap
+    - VK_KHR_acceleration_structure
+    - VK_KHR_deferred_host_operations
+    - VK_KHR_ray_query
+    - VK_KHR_shader_untyped_pointers
+    - VK_KHR_swapchain
+  DeviceFaultInfo:
+    description: ""
+    faultAddressRanges:
+      - type: Instruction Pointer Fault
+        begin: 0x0000001400BF6C10
+        end: 0x0000001400BF6C1F
+        priorAddressRecord:
+          begin: 0x0000000019000000
+          end: 0x00000000193C0000
+          type: VkImage
+          handle: 0x0000016BAA051ED0[]
+          currentlyBound: true
+      - type: Invalid Read
+        begin: 0x0000000601492000
+        end: 0x0000000601492FFF
+        priorAddressRecord:
+          begin: 0x0000000019000000
+          end: 0x00000000193C0000
+          type: VkImage
+          handle: 0x0000016BAA051ED0[]
+          currentlyBound: true
+    vendorBinaryFile: vendor_binary.dat
+  Queues:
+    -  # Queue
+      handle: 0x0000016BA86314D0[]
+      queueFamilyIndex: 0
+      index: 0
+      flags:
+        - graphics
+        - compute
+        - transfer
+        - sparse
+      completedSeq: 13
+      submittedSeq: 16
+      IncompleteSubmits:
+        - type: vkQueueSubmit
+          startSeq: 13
+          endSeq: 16
+          SubmitInfos:
+            - startSeq: 13
+              endSeq: 16
+              state: WAITING_ON_SEMAPHORES
+              CommandBuffers:
+                - 0x0000016BA8A788D0[] INCOMPLETE 15
+              WaitSemaphores:
+                - handle: 0x0000230000000023[]
+                  type: Binary
+              SignalSemaphores:
+                - handle: 0x00002C000000002C[]
+                  type: Binary
+  CommandBuffers:
+    -  # CommandBuffer
+      state: INCOMPLETE
+      handle: 0x0000016BA8A788D0[]
+      commandPool: 0x0000050000000005[]
+      queue: 0x0000016BA86314D0[]
+      fence: 0x0000260000000026[]
+      queueSeq: 15
+      level: Primary
+      simultaneousUse: false
+      beginValue: 0x00000001
+      endValue: 0x0000FFFF
+      topCheckpointValue: 0x00000007
+      bottomCheckpointValue: 0x00000006
+      lastStartedCommand: 6
+      lastCompletedCommand: 5
+      Commands:
+        -  # Command:
+          id: 5
+          checkpointValue: 0x00000006
+          name: vkCmdPushDataEXT
+          state: COMPLETED
+          parameters:
+            pPushDataInfo:
+              sType: VK_STRUCTURE_TYPE_PUSH_DATA_INFO_EXT
+              pNext:
+                - nullptr
+              offset: 0
+              data:
+                address:
+                  - 0xB8
+                  - 0xE4
+                  - 0xD9
+                  - 0x77
+                  - 0x25
+                  - 0x00
+                  - 0x00
+                  - 0x00
+                size: 8
+          message: "'>>>>>>>>>>>>>> LAST COMPLETE COMMAND <<<<<<<<<<<<<<'"
+        -  # Command:
+          id: 6
+          checkpointValue: 0x00000007
+          name: vkCmdDispatch
+          state: INCOMPLETE
+          parameters:
+            groupCountX: 80
+            groupCountY: 45
+            groupCountZ: 1
+          internalState:
+            pipeline:
+              handle: 0x00001C000000001C[]
+              bindPoint: compute
+              shaderInfos:
+                - stage: cs
+                  module: 0x00001B000000001B[]
+                  entry: CSMain
+            descriptorSets:
+              []
+          message: "'^^^^^^^^^^^^^^ LAST STARTED COMMAND ^^^^^^^^^^^^^^'"

@@ -1,0 +1,170 @@
+; SPIR-V
+; Version: 1.6
+; Generator: Khronos Slang Compiler; 0
+; Bound: 165
+; Schema: 0
+               OpCapability RayQueryKHR
+               OpCapability StorageImageReadWithoutFormat
+               OpCapability StorageImageWriteWithoutFormat
+               OpCapability ImageQuery
+               OpCapability Shader
+               OpExtension "SPV_KHR_ray_query"
+               OpMemoryModel Logical GLSL450
+               OpEntryPoint GLCompute %CSMain "CSMain" %Output %Scene %gl_GlobalInvocationID
+               OpExecutionMode %CSMain LocalSize 16 16 1
+               OpSource Slang 1
+               OpName %width "width"
+               OpName %width "width"
+               OpName %height "height"
+               OpName %height "height"
+               OpName %query "query"
+               OpName %query "query"
+               OpName %color "color"
+               OpName %color "color"
+               OpName %Output "Output"
+               OpName %vecSize "vecSize"
+               OpName %_width "_width"
+               OpName %_height "_height"
+               OpName %pixel "pixel"
+               OpName %uv "uv"
+               OpName %Scene "Scene"
+               OpName %CSMain "CSMain"
+               OpDecorate %Output Binding 1
+               OpDecorate %Output DescriptorSet 0
+               OpDecorate %gl_GlobalInvocationID BuiltIn GlobalInvocationId
+               OpDecorate %Scene Binding 0
+               OpDecorate %Scene DescriptorSet 0
+       %void = OpTypeVoid
+          %3 = OpTypeFunction %void
+       %uint = OpTypeInt 32 0
+%_ptr_Function_uint = OpTypePointer Function %uint
+       %bool = OpTypeBool
+%_ptr_Function_bool = OpTypePointer Function %bool
+      %float = OpTypeFloat 32
+    %v2float = OpTypeVector %float 2
+    %v3float = OpTypeVector %float 3
+         %20 = OpTypeRayQueryKHR
+%_ptr_Function_20 = OpTypePointer Function %20
+%_ptr_Function_v3float = OpTypePointer Function %v3float
+         %39 = OpTypeImage %float 2D 2 0 0 2 Unknown
+%_ptr_UniformConstant_39 = OpTypePointer UniformConstant %39
+     %v2uint = OpTypeVector %uint 2
+     %v3uint = OpTypeVector %uint 3
+%_ptr_Input_v3uint = OpTypePointer Input %v3uint
+       %true = OpConstantTrue %bool
+  %float_0_5 = OpConstant %float 0.5
+    %float_2 = OpConstant %float 2
+    %float_1 = OpConstant %float 1
+   %float_n1 = OpConstant %float -1
+    %float_0 = OpConstant %float 0
+         %99 = OpConstantComposite %v3float %float_0 %float_0 %float_1
+%float_0_00100000005 = OpConstant %float 0.00100000005
+%float_100000 = OpConstant %float 100000
+        %114 = OpTypeAccelerationStructureKHR
+%_ptr_UniformConstant_114 = OpTypePointer UniformConstant %114
+     %uint_0 = OpConstant %uint 0
+   %uint_255 = OpConstant %uint 255
+     %uint_1 = OpConstant %uint 1
+%float_0_0500000007 = OpConstant %float 0.0500000007
+%float_0_0799999982 = OpConstant %float 0.0799999982
+        %137 = OpConstantComposite %v3float %float_0_0500000007 %float_0_0500000007 %float_0_0799999982
+    %v4float = OpTypeVector %float 4
+     %Output = OpVariable %_ptr_UniformConstant_39 UniformConstant
+%gl_GlobalInvocationID = OpVariable %_ptr_Input_v3uint Input
+      %Scene = OpVariable %_ptr_UniformConstant_114 UniformConstant
+        %161 = OpConstantComposite %v2float %float_0_5 %float_0_5
+        %162 = OpConstantComposite %v2float %float_1 %float_1
+     %CSMain = OpFunction %void None %3
+          %4 = OpLabel
+      %width = OpVariable %_ptr_Function_uint Function
+     %height = OpVariable %_ptr_Function_uint Function
+         %11 = OpVariable %_ptr_Function_bool Function
+      %query = OpVariable %_ptr_Function_20 Function
+      %color = OpVariable %_ptr_Function_v3float Function
+               OpSelectionMerge %148 None
+               OpSwitch %uint_0 %149
+        %149 = OpLabel
+         %40 = OpLoad %39 %Output
+    %vecSize = OpImageQuerySize %v2uint %40
+     %_width = OpCompositeExtract %uint %vecSize 0
+               OpStore %width %_width
+    %_height = OpCompositeExtract %uint %vecSize 1
+               OpStore %height %_height
+         %49 = OpLoad %v3uint %gl_GlobalInvocationID
+      %pixel = OpVectorShuffle %v2uint %49 %49 0 1
+         %53 = OpCompositeExtract %uint %49 0
+         %55 = OpUGreaterThanEqual %bool %53 %_width
+               OpSelectionMerge %27 None
+               OpBranchConditional %55 %25 %26
+         %25 = OpLabel
+               OpStore %11 %true
+               OpBranch %27
+         %26 = OpLabel
+         %60 = OpCompositeExtract %uint %49 1
+         %61 = OpLoad %uint %height
+         %62 = OpUGreaterThanEqual %bool %60 %61
+               OpStore %11 %62
+               OpBranch %27
+         %27 = OpLabel
+         %65 = OpLoad %bool %11
+               OpSelectionMerge %29 None
+               OpBranchConditional %65 %28 %29
+         %28 = OpLabel
+               OpBranch %148
+         %29 = OpLabel
+         %68 = OpConvertUToF %v2float %pixel
+         %71 = OpFAdd %v2float %68 %161
+         %72 = OpLoad %uint %width
+         %73 = OpConvertUToF %float %72
+         %74 = OpLoad %uint %height
+         %75 = OpConvertUToF %float %74
+         %76 = OpCompositeConstruct %v2float %73 %75
+         %uv = OpFDiv %v2float %71 %76
+         %78 = OpVectorTimesScalar %v2float %uv %float_2
+         %82 = OpFSub %v2float %78 %162
+         %88 = OpCompositeExtract %float %82 1
+         %89 = OpFNegate %float %88
+        %164 = OpCompositeInsert %v2float %89 %82 1
+         %94 = OpCompositeConstruct %v3float %164 %float_n1
+        %115 = OpLoad %114 %Scene
+               OpRayQueryInitializeKHR %query %115 %uint_0 %uint_255 %94 %float_0_00100000005 %99 %float_100000
+               OpBranch %30
+         %30 = OpLabel
+               OpLoopMerge %35 %33 None
+               OpBranch %31
+         %31 = OpLabel
+        %121 = OpRayQueryProceedKHR %bool %query
+               OpSelectionMerge %32 None
+               OpBranchConditional %121 %32 %34
+         %32 = OpLabel
+               OpBranch %33
+         %33 = OpLabel
+               OpBranch %30
+         %34 = OpLabel
+               OpBranch %35
+         %35 = OpLabel
+        %125 = OpRayQueryGetIntersectionTypeKHR %uint %query %uint_1
+        %127 = OpINotEqual %bool %125 %uint_0
+               OpSelectionMerge %38 None
+               OpBranchConditional %127 %36 %37
+         %36 = OpLabel
+        %129 = OpRayQueryGetIntersectionBarycentricsKHR %v2float %query %uint_1
+        %130 = OpCompositeExtract %float %129 0
+        %131 = OpFSub %float %float_1 %130
+        %132 = OpCompositeExtract %float %129 1
+        %133 = OpFSub %float %131 %132
+        %134 = OpCompositeConstruct %v3float %133 %130 %132
+               OpStore %color %134
+               OpBranch %38
+         %37 = OpLabel
+               OpStore %color %137
+               OpBranch %38
+         %38 = OpLabel
+        %142 = OpLoad %v3float %color
+        %144 = OpCompositeConstruct %v4float %142 %float_1
+        %145 = OpLoad %39 %Output
+               OpImageWrite %145 %pixel %144
+               OpBranch %148
+        %148 = OpLabel
+               OpReturn
+               OpFunctionEnd
