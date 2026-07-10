@@ -44,6 +44,8 @@ compile_commands.json
 *.exp
 
 # OS and editor temporary files
+/.vscode/
+/.idea/
 .DS_Store
 Thumbs.db
 *.tmp

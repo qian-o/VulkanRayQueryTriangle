@@ -26,41 +26,48 @@ SPIR-V are safe and do not submit the reproducing workload.
 
 ## Requirements
 
-- Windows x64
-- Visual Studio 2022 C++ tools
+- A C++20 compiler
 - CMake 3.24 or newer
-- Vulkan SDK 1.4 with `VK_EXT_descriptor_heap` revision 1 headers
+- A Vulkan 1.4 SDK with `VK_EXT_descriptor_heap` revision 1 headers and loader
 - An NVIDIA device exposing the extensions and features checked by `main.cpp`
 
-The build script requires `VULKAN_SDK`. It uses `cmake` from `PATH`, or the
-CMake bundled with Visual Studio when necessary. This repository is validated
-with Vulkan SDK 1.4.350.
+CMake locates Vulkan through its standard `FindVulkan` module. Configure the
+Vulkan SDK for your platform so `find_package(Vulkan 1.4)` can locate its
+headers and loader. This repository is validated with Vulkan SDK 1.4.350.
 
 ## Build
 
 From this directory:
 
-```powershell
-.\build.ps1
+```sh
+cmake -S . -B build
+cmake --build build --config Release
 ```
 
-The executable and copied shader are written to:
+The executable and copied shader are written under the selected generator's
+build output directory. For a multi-configuration generator such as Visual
+Studio, the Release paths are typically:
 
 ```text
 build\Release\vulkan_descriptor_heap_ray_query_repro.exe
 build\Release\ray_query_heap.spv
 ```
 
-The build script also runs `spirv-val --target-env vulkan1.4` on the exact
-checked-in module.
+For a single-configuration generator, configure with
+`-DCMAKE_BUILD_TYPE=Release`; the files are typically placed directly under
+`build/`.
 
 ## Run
 
 After reading the warning above:
 
-```powershell
-.\build.ps1 -Run
+```sh
+./build/vulkan_descriptor_heap_ray_query_repro
 ```
+
+With a multi-configuration generator, run the executable from its configuration
+subdirectory, for example
+`build/Release/vulkan_descriptor_heap_ray_query_repro.exe` on Windows.
 
 The program prints the GPU, driver, descriptor sizes, descriptor offset, and
 shader-visible handle before dispatch. It returns:
@@ -119,6 +126,6 @@ load or `OpConvertUToAccelerationStructureKHR`. Its relevant instructions are
 
 Validate it without running the workload:
 
-```powershell
-& "$env:VULKAN_SDK\Bin\spirv-val.exe" --target-env vulkan1.4 .\ray_query_heap.spv
+```sh
+spirv-val --target-env vulkan1.4 ray_query_heap.spv
 ```

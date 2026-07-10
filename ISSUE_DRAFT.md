@@ -61,9 +61,18 @@ the promoted `VK_KHR_maintenance5` extension name.
 The repository root contains the complete source, CMake project, precompiled
 SPIR-V, and SPIR-V disassembly.
 
-1. Install Visual Studio 2022 C++ tools, CMake 3.24 or newer, and the Vulkan SDK.
-2. Open PowerShell in the repository root and run `./build.ps1`.
-3. Save other work, then run `./build.ps1 -Run`.
+1. Install a C++20 compiler, CMake 3.24 or newer, and a Vulkan 1.4 SDK.
+2. Configure and build from the repository root:
+
+    ```sh
+    cmake -S . -B build
+    cmake --build build --config Release
+    ```
+
+3. Save other work, then run the generated
+  `vulkan_descriptor_heap_ray_query_repro` executable. With Visual Studio it is
+  normally located at
+  `build/Release/vulkan_descriptor_heap_ray_query_repro.exe`.
 
 Warning: step 3 can hang the GPU and desktop hard enough to require a system
 restart on the affected system. Building the executable and running
@@ -140,7 +149,7 @@ accident.
 
 The checked-in module passes:
 
-```powershell
+```sh
 spirv-val --target-env vulkan1.4 ray_query_heap.spv
 ```
 
