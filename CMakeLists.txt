@@ -15,7 +15,7 @@ execute_process(
 string(STRIP "${SLANGC_VERSION_STDOUT}${SLANGC_VERSION_STDERR}" SLANGC_VERSION)
 message(STATUS "Using Slang ${SLANGC_VERSION}: ${SLANGC_EXECUTABLE}")
 if(NOT SLANGC_VERSION STREQUAL "2026.13")
-    message(WARNING "The checked-in shader artifacts and reported result use Slang 2026.13")
+    message(FATAL_ERROR "This repro requires Slang 2026.13 because its resource-heap ABI is compiler-version dependent")
 endif()
 
 set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shader")

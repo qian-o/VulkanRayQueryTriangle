@@ -114,6 +114,15 @@ struct AccelerationStructure
     VkDeviceAddress address = 0;
 };
 
+struct PushData
+{
+    uint32_t sceneHandle;
+    uint32_t reserved;
+    VkDeviceAddress resultAddress;
+};
+
+static_assert(sizeof(PushData) == 16);
+
 struct Functions
 {
     PFN_vkCreateAccelerationStructureKHR createAccelerationStructure = nullptr;
@@ -143,14 +152,13 @@ struct App
     VkPhysicalDeviceLimits limits{};
 
     Buffer vertexBuffer;
-    Buffer indexBuffer;
     Buffer instanceBuffer;
-    Buffer constantsBuffer;
     Buffer resultBuffer;
     Buffer resourceHeap;
     AccelerationStructure blas;
     AccelerationStructure tlas;
     VkPipeline pipeline = VK_NULL_HANDLE;
+    uint32_t sceneHandle = 0;
 
     bool deviceLost = false;
 };
@@ -206,10 +214,10 @@ void upload(const Buffer& buffer, const void* data, size_t byteSize)
 }
 
 template<typename T>
-T loadDeviceFunction(VkDevice device, const char* name, bool required = true)
+T loadDeviceFunction(VkDevice device, const char* name)
 {
     auto function = reinterpret_cast<T>(vkGetDeviceProcAddr(device, name));
-    if (required && !function)
+    if (!function)
     {
         fail(std::string("Missing device function: ") + name);
     }
@@ -254,7 +262,7 @@ void initializeVulkan(App& app)
                                                {
                                                    return hasExtension(candidate, extension);
                                                });
-        if (allExtensions && properties.vendorID == 0x10DE && properties.apiVersion >= VK_API_VERSION_1_4)
+        if (allExtensions && properties.apiVersion >= VK_API_VERSION_1_4)
         {
             app.physicalDevice = candidate;
             std::cout << "GPU: " << properties.deviceName
@@ -275,7 +283,7 @@ void initializeVulkan(App& app)
 
     if (app.physicalDevice == VK_NULL_HANDLE)
     {
-        fail("No NVIDIA Vulkan 1.4 device with VK_EXT_descriptor_heap + ray query found");
+        fail("No Vulkan 1.4 device with VK_EXT_descriptor_heap + ray query found");
     }
 
     uint32_t queueFamilyCount = 0;
@@ -398,7 +406,6 @@ void initializeVulkan(App& app)
 
     VkCommandPoolCreateInfo poolInfo{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
     poolInfo.queueFamilyIndex = app.queueFamily;
-    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     check(vkCreateCommandPool(app.device, &poolInfo, nullptr, &app.commandPool), "vkCreateCommandPool");
 }
 
@@ -475,20 +482,11 @@ void buildAccelerationStructures(App& app)
         -0.5f, -0.5f, 0.0f, 0.0f,
          0.5f, -0.5f, 0.0f, 0.0f,
     };
-    const std::array<uint32_t, 3> indices{0, 1, 2};
-
     app.vertexBuffer = createBuffer(app,
                                     sizeof(vertices),
-                                    VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
-                                        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                                    VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
                                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    app.indexBuffer = createBuffer(app,
-                                   sizeof(indices),
-                                   VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
-                                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     upload(app.vertexBuffer, vertices.data(), sizeof(vertices));
-    upload(app.indexBuffer, indices.data(), sizeof(indices));
 
     VkAccelerationStructureGeometryKHR blasGeometry{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
     blasGeometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
@@ -499,8 +497,7 @@ void buildAccelerationStructures(App& app)
     triangles.vertexData.deviceAddress = app.vertexBuffer.address;
     triangles.vertexStride = 4 * sizeof(float);
     triangles.maxVertex = 2;
-    triangles.indexType = VK_INDEX_TYPE_UINT32;
-    triangles.indexData.deviceAddress = app.indexBuffer.address;
+    triangles.indexType = VK_INDEX_TYPE_NONE_KHR;
 
     VkAccelerationStructureBuildGeometryInfoKHR blasBuild{
         VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR};
@@ -526,7 +523,7 @@ void buildAccelerationStructures(App& app)
                                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     VkDeviceAddress blasScratchAddress = 0;
     app.blas.scratch = allocateScratch(app,
-                                       std::max(blasSizes.buildScratchSize, blasSizes.updateScratchSize),
+                                       blasSizes.buildScratchSize,
                                        blasScratchAddress);
 
     VkAccelerationStructureCreateInfoKHR blasCreate{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR};
@@ -585,7 +582,7 @@ void buildAccelerationStructures(App& app)
                                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     VkDeviceAddress tlasScratchAddress = 0;
     app.tlas.scratch = allocateScratch(app,
-                                       std::max(tlasSizes.buildScratchSize, tlasSizes.updateScratchSize),
+                                       tlasSizes.buildScratchSize,
                                        tlasScratchAddress);
 
     VkAccelerationStructureCreateInfoKHR tlasCreate{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR};
@@ -660,19 +657,7 @@ void createDescriptorHeapAndBuffers(App& app)
     auto* sceneSlot = static_cast<std::byte*>(app.resourceHeap.mapped) + asOffset;
     std::memcpy(sceneSlot, &app.tlas.address, sizeof(app.tlas.address));
 
-    struct Constants
-    {
-        uint32_t sceneHandle;
-        uint32_t reserved;
-    } constants{};
-    static_assert(sizeof(Constants) == 8);
-    constants.sceneHandle = sceneHandle;
-
-    app.constantsBuffer = createBuffer(app,
-                                       sizeof(Constants),
-                                       VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    upload(app.constantsBuffer, &constants, sizeof(constants));
+    app.sceneHandle = sceneHandle;
 
     const uint32_t pendingResult = std::numeric_limits<uint32_t>::max();
     app.resultBuffer = createBuffer(app,
@@ -681,16 +666,12 @@ void createDescriptorHeapAndBuffers(App& app)
                                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     upload(app.resultBuffer, &pendingResult, sizeof(pendingResult));
 
-    const VkDeviceSize uniformAlignment = std::max<VkDeviceSize>(
-        app.limits.minUniformBufferOffsetAlignment, 1);
     const VkDeviceSize storageAlignment = std::max<VkDeviceSize>(
         app.limits.minStorageBufferOffsetAlignment, 1);
-    if (app.constantsBuffer.address == 0 ||
-        (app.constantsBuffer.address % uniformAlignment) != 0 ||
-        app.resultBuffer.address == 0 ||
+    if (app.resultBuffer.address == 0 ||
         (app.resultBuffer.address % storageAlignment) != 0 ||
         app.limits.maxStorageBufferRange < sizeof(pendingResult) ||
-        app.heapProperties.maxPushDataSize < 2 * sizeof(VkDeviceAddress))
+        app.heapProperties.maxPushDataSize < sizeof(PushData))
     {
         fail("Invalid mapped-buffer alignment, range, or push-data capacity");
     }
@@ -718,8 +699,8 @@ void createPipeline(App& app,
     mappings[0].firstBinding = 0;
     mappings[0].bindingCount = 1;
     mappings[0].resourceMask = VK_SPIRV_RESOURCE_TYPE_UNIFORM_BUFFER_BIT_EXT;
-    mappings[0].source = VK_DESCRIPTOR_MAPPING_SOURCE_PUSH_ADDRESS_EXT;
-    mappings[0].sourceData.pushAddressOffset = 0;
+    mappings[0].source = VK_DESCRIPTOR_MAPPING_SOURCE_PUSH_DATA_EXT;
+    mappings[0].sourceData.pushDataOffset = 0;
 
     mappings[1].sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_AND_BINDING_MAPPING_EXT;
     mappings[1].descriptorSet = 0;
@@ -771,12 +752,9 @@ VkResult dispatch(App& app)
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, app.pipeline);
 
-    const std::array<VkDeviceAddress, 2> pushAddresses{
-        app.constantsBuffer.address,
-        app.resultBuffer.address,
-    };
+    const PushData data{app.sceneHandle, 0, app.resultBuffer.address};
     VkPushDataInfoEXT pushData{VK_STRUCTURE_TYPE_PUSH_DATA_INFO_EXT};
-    pushData.data = {pushAddresses.data(), sizeof(pushAddresses)};
+    pushData.data = {&data, sizeof(data)};
     app.fn.cmdPushData(commandBuffer, &pushData);
     vkCmdDispatch(commandBuffer, 1, 1, 1);
 
@@ -830,7 +808,6 @@ void cleanup(App& app)
         {
             app.fn.destroyAccelerationStructure(app.device, app.blas.handle, nullptr);
         }
-        destroyBuffer(app, app.constantsBuffer);
         destroyBuffer(app, app.resultBuffer);
         destroyBuffer(app, app.resourceHeap);
         destroyBuffer(app, app.tlas.scratch);
@@ -838,7 +815,6 @@ void cleanup(App& app)
         destroyBuffer(app, app.blas.scratch);
         destroyBuffer(app, app.blas.storage);
         destroyBuffer(app, app.instanceBuffer);
-        destroyBuffer(app, app.indexBuffer);
         destroyBuffer(app, app.vertexBuffer);
 
         if (app.commandPool)
