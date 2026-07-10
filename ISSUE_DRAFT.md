@@ -20,9 +20,6 @@ On an NVIDIA GeForce RTX 3050 Laptop GPU with driver 610.74, submission of this
 dispatch causes a severe GPU/desktop hang and may require a system restart.
 Pipeline creation and acceleration-structure builds complete before the hang.
 
-The reproduction has no window system, swapchain, .NET, Silk.NET, or Slang
-runtime dependency. It loads the checked-in SPIR-V directly through Vulkan.
-
 The shader source enters the descriptor heap through the exact Slang type under
 test:
 

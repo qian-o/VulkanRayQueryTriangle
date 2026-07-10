@@ -2,8 +2,7 @@
 
 This repository is a headless C++20 reproduction for an NVIDIA failure when a
 ray query loads an opaque `OpTypeAccelerationStructureKHR` descriptor from
-`VK_EXT_descriptor_heap`. It contains no .NET project, window system, swapchain,
-or runtime shader compiler. The checked-in SPIR-V is loaded directly by Vulkan.
+`VK_EXT_descriptor_heap`.
 
 The host targets Vulkan 1.4 and uses the ratified
 `VK_EXT_descriptor_heap` revision 1 interface. The shader entry under test is a
