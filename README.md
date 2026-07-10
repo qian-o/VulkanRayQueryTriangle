@@ -19,9 +19,10 @@ That entry lowers to a direct opaque acceleration-structure load from the
 ## Warning
 
 On the affected RTX 3050 Laptop GPU and NVIDIA 610.74 driver, submitting the
-single `1x1x1` dispatch can hang the GPU and desktop hard enough to require a
-system restart. Save other work before running. Building and validating the
-SPIR-V are safe and do not submit the reproducing workload.
+single `1x1x1` dispatch can black out the display and return
+`VK_ERROR_DEVICE_LOST`. Some runs may hang the GPU and desktop hard enough to
+require a system restart. Save other work before running. Building and
+validating the SPIR-V are safe and do not submit the reproducing workload.
 
 ## Requirements
 
@@ -45,12 +46,10 @@ cmake --build build --config Release
 
 The executable and copied shader are written under the selected generator's
 build output directory. For a multi-configuration generator such as Visual
-Studio, the Release paths are typically:
-
-```text
-build\Release\vulkan_descriptor_heap_ray_query_repro.exe
-build\Release\ray_query_heap.spv
-```
+Studio, the Release executable is typically
+`build/Release/vulkan_descriptor_heap_ray_query_repro.exe`. The adjacent
+`ray_query_heap.spv` is shader data loaded by the executable; it is not a
+program and should not be run directly.
 
 For a single-configuration generator, configure with
 `-DCMAKE_BUILD_TYPE=Release`; the files are typically placed directly under
@@ -58,15 +57,17 @@ For a single-configuration generator, configure with
 
 ## Run
 
-After reading the warning above:
+With the Visual Studio generator on Windows, after reading the warning above:
+
+```powershell
+.\build\Release\vulkan_descriptor_heap_ray_query_repro.exe
+```
+
+With a single-configuration generator, the executable is typically run as:
 
 ```sh
 ./build/vulkan_descriptor_heap_ray_query_repro
 ```
-
-With a multi-configuration generator, run the executable from its configuration
-subdirectory, for example
-`build/Release/vulkan_descriptor_heap_ray_query_repro.exe` on Windows.
 
 The program prints the GPU, driver, descriptor sizes, descriptor offset, and
 shader-visible handle before dispatch. It returns:
@@ -83,9 +84,11 @@ program also prints the available fault information.
 
 Expected: the one-ray query completes and `vkWaitForFences` returns success.
 
-Observed on the affected system: submission reaches the dispatch, then the GPU
-or desktop hangs. Related variants have returned `VK_ERROR_DEVICE_LOST`, but a
-hard hang is the observed result for this opaque-descriptor reproduction.
+Observed on the affected system: the display blacks out during the dispatch,
+then the process returns `VK_ERROR_DEVICE_LOST`. `VK_EXT_device_fault` reports
+one address entry of type
+`VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_UNKNOWN_EXT`. A previous run
+also caused a hard GPU/desktop hang that required a system restart.
 
 ## Descriptor layout
 

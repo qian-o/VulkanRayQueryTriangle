@@ -6,7 +6,7 @@
 
 ## Title
 
-`VK_EXT_descriptor_heap`: opaque acceleration-structure descriptor causes GPU hang in ray query on RTX 3050 Laptop GPU (610.74)
+`VK_EXT_descriptor_heap`: opaque acceleration-structure descriptor causes display blackout and VK_ERROR_DEVICE_LOST in ray query on RTX 3050 Laptop GPU (610.74)
 
 ## Summary
 
@@ -17,8 +17,9 @@ with `vkWriteResourceDescriptorsEXT`, loads it from `ResourceHeapEXT` as
 `1x1x1` compute dispatch.
 
 On an NVIDIA GeForce RTX 3050 Laptop GPU with driver 610.74, submission of this
-dispatch causes a severe GPU/desktop hang and may require a system restart.
-Pipeline creation and acceleration-structure builds complete before the hang.
+dispatch blacks out the display and returns `VK_ERROR_DEVICE_LOST`. A previous
+run caused a hard GPU/desktop hang that required a system restart. Pipeline
+creation and acceleration-structure builds complete before the failure.
 
 The shader source enters the descriptor heap through the exact Slang type under
 test:
@@ -85,18 +86,20 @@ There is no output image; successful completion is sufficient.
 
 ## Observed behavior
 
-The program reaches:
+The display blacks out during the dispatch. After the display recovers, the
+exact opaque-descriptor reproduction prints:
 
 ```text
 Dispatching descriptor-heap AS ray query...
+REPRODUCED: VK_ERROR_DEVICE_LOST
+Device fault: 1 address info(s), description=''
+  fault[0] type=4, reported=0xd00bf8540, precision=0x10
 ```
 
-The GPU/desktop then hangs. On the affected run, the system had to be restarted,
-so the process could not print a final `VkResult` or collect
-`VK_EXT_device_fault` data for this exact opaque-descriptor variant.
-
-Related diagnostic variants returned `VK_ERROR_DEVICE_LOST`, but those results
-are not presented as evidence for this exact reproduction.
+Vulkan SDK 1.4.350 defines address type `4` as
+`VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_UNKNOWN_EXT`. The reported
+address is included as driver diagnostic data; the reproduction does not assume
+that it is an application resource address.
 
 ## Descriptor encoding and heap index
 
@@ -201,11 +204,14 @@ only the integer heap handle used to index `ResourceHeapEXT`.
 - The heap handle is derived from the aligned buffer descriptor stride used by
   `OpConstantSizeOfEXT`, not from the exact 8-byte descriptor payload size.
 - BLAS/TLAS builds and compute-pipeline creation complete before dispatch.
+- The exact opaque-descriptor dispatch returns `VK_ERROR_DEVICE_LOST` and
+  reports one `VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_UNKNOWN_EXT`
+  entry through `VK_EXT_device_fault`.
 
 ## Request
 
 Please confirm whether this opaque acceleration-structure descriptor access is
 expected to work with `VK_EXT_descriptor_heap` on this driver, and investigate
-the GPU hang during the first ray-query dispatch. Any recommended additional
-NVIDIA diagnostic capture that does not require repeatedly triggering the hard
-hang would also be useful.
+the display reset and device loss during the first ray-query dispatch. Any
+recommended additional NVIDIA diagnostic capture that does not require
+repeatedly triggering the failure would also be useful.

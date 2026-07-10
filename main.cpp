@@ -785,6 +785,29 @@ void createPipeline(App& app, const std::filesystem::path& spirvPath)
           "vkCreateComputePipelines");
 }
 
+const char* deviceFaultAddressTypeName(VkDeviceFaultAddressTypeEXT type)
+{
+    switch (type)
+    {
+    case VK_DEVICE_FAULT_ADDRESS_TYPE_NONE_EXT:
+        return "VK_DEVICE_FAULT_ADDRESS_TYPE_NONE_EXT";
+    case VK_DEVICE_FAULT_ADDRESS_TYPE_READ_INVALID_EXT:
+        return "VK_DEVICE_FAULT_ADDRESS_TYPE_READ_INVALID_EXT";
+    case VK_DEVICE_FAULT_ADDRESS_TYPE_WRITE_INVALID_EXT:
+        return "VK_DEVICE_FAULT_ADDRESS_TYPE_WRITE_INVALID_EXT";
+    case VK_DEVICE_FAULT_ADDRESS_TYPE_EXECUTE_INVALID_EXT:
+        return "VK_DEVICE_FAULT_ADDRESS_TYPE_EXECUTE_INVALID_EXT";
+    case VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_UNKNOWN_EXT:
+        return "VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_UNKNOWN_EXT";
+    case VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_INVALID_EXT:
+        return "VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_INVALID_EXT";
+    case VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_FAULT_EXT:
+        return "VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_FAULT_EXT";
+    default:
+        return "VK_DEVICE_FAULT_ADDRESS_TYPE_UNKNOWN";
+    }
+}
+
 void dumpDeviceFault(App& app)
 {
     if (!app.fn.getDeviceFaultInfo)
@@ -821,7 +844,9 @@ void dumpDeviceFault(App& app)
     for (uint32_t index = 0; index < counts.addressInfoCount; ++index)
     {
         const auto& address = addresses[index];
-        std::cout << "  fault[" << index << "] type=" << address.addressType
+        std::cout << "  fault[" << index << "] type="
+                  << deviceFaultAddressTypeName(address.addressType)
+                  << " (" << address.addressType << ')'
                   << ", reported=0x" << std::hex << address.reportedAddress
                   << ", precision=0x" << address.addressPrecision << std::dec << '\n';
     }
