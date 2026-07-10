@@ -75,9 +75,7 @@ https://github.com/qian-o/VulkanRayQueryTriangle
 
 Reproduction commit:
 
-```text
-TODO: replace with the commit containing the standard descriptor API path
-```
+https://github.com/qian-o/VulkanRayQueryTriangle/commit/c5f99e0f6b76c5785ad61f4a75651f50d888d99d
 
 Minimal shader source:
 
