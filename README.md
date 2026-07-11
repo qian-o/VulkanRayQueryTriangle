@@ -5,9 +5,6 @@ On NVIDIA 610.74, submitting the shader causes `VK_ERROR_DEVICE_LOST`.
 
 ## Shader
 
-`ray_query.slang` is the only shader source tracked by the project. CMake
-generates the SPIR-V binary and its disassembly in the build directory.
-
 Slang 2026.13 lowers the acceleration-structure `DescriptorHandle` to an
 8-byte resource-heap load followed by a conversion:
 
