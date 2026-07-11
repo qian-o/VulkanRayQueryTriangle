@@ -3,13 +3,10 @@
 Minimal Vulkan 1.4 repro using a ray-query shader compiled by Slang 2026.13.
 On NVIDIA 610.74, submitting the shader causes `VK_ERROR_DEVICE_LOST`.
 
-## Shader files
+## Shader
 
-The project contains exactly three shader files:
-
-- `ray_query.slang`: readable source and the file to edit or debug.
-- `ray_query.spv`: exact Slang-generated binary used for the reported result.
-- `ray_query.spvasm`: disassembly for auditing the generated instructions.
+`ray_query.slang` is the only shader source tracked by the project. CMake
+generates the SPIR-V binary and its disassembly in the build directory.
 
 Slang 2026.13 lowers the acceleration-structure `DescriptorHandle` to an
 8-byte resource-heap load followed by a conversion:
