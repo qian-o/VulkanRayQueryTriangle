@@ -34,21 +34,6 @@ cmake --build build --config Release
 .\build\Release\vulkan_descriptor_heap_ray_query_repro.exe
 ```
 
-Slang invocation used by CMake:
-
-```powershell
-cmake -E make_directory .\build\shader
-slangc .\ray_query.slang `
-   -target spirv `
-   -profile glsl_460 `
-   -entry main `
-   -stage compute `
-   -capability spirv_1_4 `
-   -capability spvDescriptorHeapEXT `
-   -capability spvRayQueryKHR `
-   -o .\build\shader\ray_query.spv
-```
-
 CMake compiles `ray_query.slang`, validates the generated module for Vulkan
 1.4, writes its disassembly under `build\shader`, and copies the binary beside
 the executable. The command above uses the default Visual Studio
