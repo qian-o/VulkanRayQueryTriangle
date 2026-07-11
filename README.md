@@ -24,7 +24,8 @@ heap and passes its 8-byte-stride index through the `DescriptorHandle`.
 - Vulkan SDK 1.4 headers, loader, and SPIR-V Tools
 - Slang 2026.13 on `PATH`
 - A Vulkan 1.4 device supporting `VK_EXT_descriptor_heap`, acceleration
-   structures, ray queries, buffer device addresses, and untyped pointers
+   structures, ray queries, 64-bit shader integers, buffer device addresses,
+   and untyped pointers
 
 ## Build and run
 
