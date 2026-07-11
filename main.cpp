@@ -330,7 +330,8 @@ void initializeVulkan(App& app)
     supportedUntypedPointers.pNext = &supportedDescriptorHeap;
     vkGetPhysicalDeviceFeatures2(app.physicalDevice, &supportedFeatures);
 
-    if (!supportedVulkan12.bufferDeviceAddress || !supportedVulkan13.synchronization2 ||
+    if (!supportedFeatures.features.shaderInt64 || !supportedVulkan12.bufferDeviceAddress ||
+        !supportedVulkan13.synchronization2 ||
         !supportedAccelerationStructure.accelerationStructure || !supportedRayQuery.rayQuery ||
         !supportedUntypedPointers.shaderUntypedPointers || !supportedDescriptorHeap.descriptorHeap ||
         !supportedVulkan14.maintenance5)
@@ -360,6 +361,7 @@ void initializeVulkan(App& app)
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_FEATURES_EXT};
     enabledDescriptorHeap.descriptorHeap = VK_TRUE;
     VkPhysicalDeviceFeatures2 enabledFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+    enabledFeatures.features.shaderInt64 = VK_TRUE;
 
     enabledFeatures.pNext = &enabledVulkan12;
     enabledVulkan12.pNext = &enabledVulkan13;
