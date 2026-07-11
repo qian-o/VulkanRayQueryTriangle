@@ -34,8 +34,7 @@ cmake --build build --config Release
 .\build\Release\vulkan_descriptor_heap_ray_query_repro.exe
 ```
 
-The shader can also be compiled directly with the same Slang arguments used by
-CMake:
+Slang invocation used by CMake:
 
 ```powershell
 cmake -E make_directory .\build\shader
