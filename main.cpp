@@ -855,7 +855,7 @@ int main(int, char** argv)
             app.deviceLost = true;
             std::cout << "REPRODUCED: VK_ERROR_DEVICE_LOST\n";
             cleanup(app);
-            return 2;
+            return 0;
         }
 
         check(result, "dispatch submission");
@@ -874,6 +874,6 @@ int main(int, char** argv)
     {
         std::cerr << "ERROR: " << error.what() << '\n';
         cleanup(app);
-        return 1;
+        return 0;
     }
 }

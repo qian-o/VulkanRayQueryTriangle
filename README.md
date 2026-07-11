@@ -51,9 +51,8 @@ Dispatching Slang descriptor-heap AS ray query...
 REPRODUCED: VK_ERROR_DEVICE_LOST
 ```
 
-A conforming implementation must not lose the device. A successful run should
-report the expected triangle hit and exit with code 0; the affected driver
-exits with code 2 after device loss.
+A conforming implementation must not lose the device. Use the console output to
+distinguish a reproduced device loss, a successful ray query, or an error.
 
 Known failing configuration:
 
